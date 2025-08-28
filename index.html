@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<title>英汉词汇闪卡</title>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<style>
+    :root { --card-w: 88vw; --card-max-w: 520px; --card-h: 60vh; --card-max-h: 600px; --radius: 14px; --shadow: 0 8px 24px rgba(0,0,0,0.08); --brand: #0f766e; }
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "PingFang SC","Noto Sans SC","Microsoft YaHei", sans-serif; margin: 0; padding: 0; min-height: 100vh; background: #f7faf9; display: flex; flex-direction: column; align-items: center; }
+
+    .site-header { display:flex; align-items:center; gap:14px; margin:20px 16px 6px; flex-direction: row; }
+    .site-header img { height:72px; width:auto; }
+    .site-title { font-weight: 800; font-size: 1.25rem; color:#0b3c39; text-align: center; }
+    .site-instruction { margin: 0 16px 14px; color:#334; text-align:center; }
+
+    .card-container { position: relative; width: var(--card-w); max-width: var(--card-max-w); height: var(--card-h); max-height: var(--card-max-h); perspective: 1000px; margin-bottom: 12px; }
+    .card { position: absolute; inset: 0; transform-style: preserve-3d; transition: transform .6s ease; z-index:1; }
+    .front, .back { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; border-radius: var(--radius); background: #fff; border:1px solid #e8ebe9; box-shadow: var(--shadow); padding: 28px; backface-visibility: hidden; }
+    .back { transform: rotateY(180deg); }
+    .card.flipped { transform: rotateY(180deg); }
+    body.overlay-open #card { pointer-events: none; }
+
+    .word { font-size: clamp(2.2rem, 8vw, 3.2rem); font-weight: 800; color:#0b3c39; text-align:center; line-height:1.05; }
+    .phon { margin-top: 10px; font-size: clamp(1rem, 3.5vw, 1.4rem); color:#6b7c7a; font-weight: 500; letter-spacing:.3px; }
+    .translation-zh { font-size: clamp(1.4rem, 4.5vw, 1.8rem); color:#0b3c39; font-weight: 700; text-align:center; }
+    .example { margin-top: 14px; width:100%; max-width: 520px; text-align:center; }
+    .ex-en { font-size: 1.05rem; color:#1f2937; margin-bottom: 6px; text-align:center; }
+    .ex-zh { font-size: 1.05rem; color:#374151; text-align:center; }
+    .highlight { font-weight: 800; color: var(--brand); }
+
+    .audio-front, .audio-back { margin-top: 16px; font-size: 1.4rem; cursor:pointer; user-select:none; }
+    .buttons-container { display:flex; gap:10px; width: var(--card-w); max-width: var(--card-max-w); margin-bottom: 16px; }
+    .btn { flex:1; padding: 12px; border:none; border-radius: 10px; font-size:1rem; cursor:pointer; box-shadow: 0 2px 4px rgba(0,0,0,.06); }
+    .know { background:#c7f9cc; }
+    .practice { background:#ffddd2; }
+
+    .nav { display:flex; justify-content:space-between; width:var(--card-w); max-width: var(--card-max-w); margin-bottom: 16px; }
+    .nav button { font-size:2rem; background:none; border:none; cursor:pointer; }
+
+    .hidden { display:none; }
+
+    #congratsMsg { position:absolute; inset:0; background:#fff; border-radius:var(--radius); box-shadow: var(--shadow); padding: 20px; z-index:9999; }
+    #congratsMsg:not(.hidden) { display:flex; flex-direction:column; align-items:center; justify-content:center; gap: 10px; }
+    #congratsMsg input { padding:10px; border:1px solid #e5e7eb; border-radius:10px; width: 100%; max-width: 320px; }
+    #congratsActions { display:flex; gap:10px; flex-wrap:wrap; justify-content:center; }
+    #saveImgBtn { background:#dbeafe; }
+    #reviewAll { background:#e5e7eb; }
+
+    footer { margin-top:auto; font-size:.85rem; color:#6b7280; text-align:center; padding: 18px 10px; width:100%; }
+
+    @media print {
+      body { background: #fff; }
+      .site-header, .site-instruction, .card-container, .buttons-container, .nav, #reviewControls, footer, #congratsMsg { display: none !important; }
+      #pdfReport { display: block !important; }
+    }
+    #pdfReport { display:none; padding: 24px; max-width: 980px; margin: 0 auto; font-size: 14px; color:#111827; }
+    #pdfReport h1 { font-size: 1.5rem; margin: 0 0 8px; }
+    #pdfReport h2 { font-size: 1.2rem; margin: 18px 0 8px; }
+    #pdfReport table { width:100%; border-collapse: collapse; margin-top: 8px; }
+    #pdfReport th, #pdfReport td { border: 1px solid #e5e7eb; padding: 8px; text-align: left; }
+    #pdfReport .muted { color:#6b7280; }
+    #pdfReport .score-row { font-size: 1.3rem; font-weight: 800; color: var(--brand); }
+  
+.site-title { text-align: left; }
+
+.site-header-content { display: flex; flex-direction: column; }
+.site-title { text-align: left; }
+</style>
+</head>
+<body>
+<div class="site-header">
+<img alt="BFSU Logo" src="LOGO.png"/>
+
+<div class="site-header-content"><div class="site-title" id="siteTitle">词汇闪卡</div></div></div><p class="site-instruction" id="siteInstr">点击卡片以翻转。点击音频图标🔊可收听单词或句子。</p>
+<div class="card-container">
+<div class="card" id="card">
+<div aria-label="翻转卡片" class="front" role="button">
+<div class="word" id="frontWord"></div>
+<div class="phon" id="frontPhon"></div>
+<button aria-label="播放单词音频" class="audio-front" id="audioFront" title="播放单词音频">🔊</button>
+</div>
+<div aria-label="翻转卡片" class="back" role="button">
+<div class="translation-zh" id="backTransZh"></div>
+<div class="example">
+<div class="ex-en" id="exEn"></div>
+<div class="ex-zh" id="exZh"></div>
+</div>
+<button aria-label="播放例句音频" class="audio-back" id="audioBack" title="播放例句音频">🔊</button>
+</div>
+</div>
+<div class="hidden" id="congratsMsg">
+<h2>太棒了！🎉</h2>
+<input id="studentId" placeholder="姓名 / 学号（可选）"/>
+<div class="muted" id="congratsSummary"></div>
+<div id="congratsActions">
+<button class="btn" id="saveImgBtn">保存为图片</button>
+<button class="btn" id="reviewAll">复习所有单词</button>
+</div>
+</div>
+</div>
+<div class="buttons-container">
+<button class="btn know" id="knowBtn">已掌握</button>
+<button class="btn practice" id="practiceBtn">需要练习</button>
+</div>
+<div class="nav">
+<button aria-label="上一张" id="prevBtn">←</button>
+<button aria-label="下一张" id="nextBtn">→</button>
+</div>
+<div class="hidden" id="reviewControls">
+<button class="btn" id="reviewPractice">复习“需要练习”</button>
+</div>
+<!-- 报告（用于导出图片） -->
+<section id="pdfReport">
+<h1>学习表现报告</h1>
+<div id="reportMeta"></div>
+<h2>摘要</h2>
+<table>
+<tbody id="summaryTable"></tbody>
+</table>
+<p class="muted">此报告由前端页面本地生成，可放心保存并发送给老师。</p>
+</section>
+<footer>©2025 Dr. Carlos Cardenas • 教育管理学博士</footer>
+<script>
+    // ====== 词表数据（动态） ======
+    const wordsAll = [
+      
+  {"english":"strict","phonetic":"/strɪkt/","translation_zh":"严格的","example_en":"My math teacher is very strict, but she makes sure we understand everything clearly.","example_zh":"我的数学老师非常严格，但她确保我们把内容理解清楚。"},
+  {"english":"patient","phonetic":"/ˈpeɪʃənt/","translation_zh":"耐心的","example_en":"Our English teacher is very patient, and he explains grammar again and again if we don’t get it.","example_zh":"我们的英语老师很有耐心，如果我们没理解，他会一再讲解语法。"},
+  {"english":"encouraging","phonetic":"/ɪnˈkɜːrɪdʒɪŋ/","translation_zh":"鼓励的","example_en":"She is always encouraging, so students feel more confident to speak in class.","example_zh":"她总是很鼓励人，所以学生在课堂上更有信心发言。"},
+  {"english":"humorous","phonetic":"/ˈhjuːmərəs/","translation_zh":"幽默的","example_en":"My history teacher is humorous, and he often tells jokes to make the lessons interesting.","example_zh":"我的历史老师很幽默，他经常讲笑话让课堂更有趣。"},
+  {"english":"demanding","phonetic":"/dɪˈmændɪŋ/","translation_zh":"要求高的","example_en":"The chemistry course is quite demanding, and we need to spend many hours on assignments.","example_zh":"化学课程要求很高，我们需要花很多时间做作业。"},
+  {"english":"friendly","phonetic":"/ˈfrɛndli/","translation_zh":"友好的","example_en":"Our librarian is very friendly and always helps us find the right books.","example_zh":"我们的图书管理员非常友好，总是帮我们找到合适的书。"},
+  {"english":"helpful","phonetic":"/ˈhɛlpfəl/","translation_zh":"乐于助人的","example_en":"My classmates are very helpful, especially when I have questions about math homework.","example_zh":"我的同学很乐于助人，特别是当我有数学作业问题时。"},
+  {"english":"old-fashioned","phonetic":"/ˌoʊldˈfæʃənd/","translation_zh":"老派的","example_en":"Some teachers are a bit old-fashioned and prefer using chalk instead of modern technology.","example_zh":"有些老师有点老派，更喜欢用粉笔而不是现代科技。"},
+  
+  {"english":"compulsory","phonetic":"/kəmˈpʌlsəri/","translation_zh":"必修的","example_en":"In my country, English is a compulsory subject in both primary and secondary school.","example_zh":"在我国，英语是小学和中学的必修科目。"},
+  {"english":"optional","phonetic":"/ˈɑːpʃənl/","translation_zh":"选修的","example_en":"Art is an optional subject, but many students choose it because it’s creative and relaxing.","example_zh":"美术是选修课，但很多学生选择它，因为有创意又放松。"},
+  {"english":"subjects","phonetic":"/ˈsʌbdʒɪkts/","translation_zh":"科目","example_en":"My favourite subjects are biology and history, because I enjoy learning about life and the past.","example_zh":"我最喜欢的科目是生物和历史，因为我喜欢学习生命和过去。"},
+  {"english":"assignments","phonetic":"/əˈsaɪnmənts/","translation_zh":"作业","example_en":"We have to finish several assignments every week, which can be stressful sometimes.","example_zh":"我们每周必须完成几份作业，有时会很有压力。"},
+  {"english":"exams","phonetic":"/ɪɡˈzæmz/","translation_zh":"考试","example_en":"Final exams are very important, so most students study hard for weeks in advance.","example_zh":"期末考试很重要，所以大多数学生提前几周努力复习。"},
+  {"english":"marks","phonetic":"/mɑːrks/","translation_zh":"分数","example_en":"I always feel nervous when I get my exam marks back.","example_zh":"当我拿回考试分数时，我总是很紧张。"},
+  {"english":"major","phonetic":"/ˈmeɪdʒər/","translation_zh":"专业","example_en":"At university, I plan to major in education because I want to be a teacher.","example_zh":"在大学里，我打算主修教育，因为我想当老师。"},
+  {"english":"history","phonetic":"/ˈhɪstəri/","translation_zh":"历史","example_en":"History is fascinating to me because I can learn about different cultures and events.","example_zh":"历史让我着迷，因为我能学习不同的文化和事件。"},
+  {"english":"biology","phonetic":"/baɪˈɑːlədʒi/","translation_zh":"生物学","example_en":"Biology is one of my favourite subjects, especially when we study animals and plants.","example_zh":"生物学是我最喜欢的科目之一，特别是学习动物和植物时。"},
+  {"english":"chemistry","phonetic":"/ˈkɛmɪstri/","translation_zh":"化学","example_en":"Chemistry is quite challenging, but doing experiments in the laboratory is exciting.","example_zh":"化学相当有挑战性，但在实验室里做实验很令人兴奋。"},
+  {"english":"math","phonetic":"/mæθ/","translation_zh":"数学","example_en":"Math is essential because it trains us to think logically and solve problems.","example_zh":"数学很重要，因为它训练我们逻辑思维和解决问题。"},
+  {"english":"physics","phonetic":"/ˈfɪzɪks/","translation_zh":"物理学","example_en":"Physics helps me understand how the world works, like why planes can fly.","example_zh":"物理学帮助我理解世界如何运作，比如为什么飞机能飞。"},
+  
+  {"english":"discipline","phonetic":"/ˈdɪsəplɪn/","translation_zh":"纪律","example_en":"Good discipline in class helps students stay focused and learn better.","example_zh":"课堂上的良好纪律有助于学生保持专注，更好地学习。"},
+  {"english":"private","phonetic":"/ˈpraɪvət/","translation_zh":"私立的","example_en":"Private schools usually have smaller classes and more facilities.","example_zh":"私立学校通常班级更小，设施更多。"},
+  {"english":"public","phonetic":"/ˈpʌblɪk/","translation_zh":"公立的","example_en":"I studied in a public school, which was free but still provided a good education.","example_zh":"我在公立学校学习，虽然免费，但依然提供了良好的教育。"},
+  {"english":"primary","phonetic":"/ˈpraɪmeri/","translation_zh":"小学的","example_en":"I still remember my primary school teachers because they were very caring.","example_zh":"我仍记得我的小学老师，因为他们非常关心我们。"},
+  {"english":"secondary","phonetic":"/ˈsɛkəndɛri/","translation_zh":"中学的","example_en":"Secondary school was a turning point in my life as I started to think about my future.","example_zh":"中学是我人生的转折点，因为我开始思考未来。"},
+  {"english":"junior","phonetic":"/ˈdʒuːniər/","translation_zh":"初级的","example_en":"In junior secondary school, I joined many clubs to make new friends.","example_zh":"在初中时，我参加了许多社团来结交新朋友。"},
+  {"english":"senior","phonetic":"/ˈsiːniər/","translation_zh":"高年级的","example_en":"During senior secondary school, students usually prepare for university entrance exams.","example_zh":"在高中阶段，学生通常准备大学入学考试。"},
+  {"english":"uniform","phonetic":"/ˈjuːnɪfɔːrm/","translation_zh":"校服","example_en":"We had to wear a school uniform every day, which made everyone look the same.","example_zh":"我们每天必须穿校服，这让大家看起来都一样。"},
+  {"english":"library","phonetic":"/ˈlaɪbreri/","translation_zh":"图书馆","example_en":"The school library was my favourite place because it was quiet and full of books.","example_zh":"学校的图书馆是我最喜欢的地方，因为那里安静而且有很多书。"},
+  {"english":"laboratory","phonetic":"/ləˈbɒrətɔːri/","translation_zh":"实验室","example_en":"We often did experiments in the laboratory, which made science lessons more practical.","example_zh":"我们经常在实验室里做实验，这让科学课更有实践性。"}
+
+    ];
+
+    // === Deck helpers (dynamic) ===
+    const words = wordsAll;
+    function getAllIndices() { return words.map((_, i) => i); }
+    function totalTerms() { return words.length; }
+
+    // App state
+    let INITIAL_INDICES = getAllIndices();
+    let currentIndices = [...INITIAL_INDICES];
+    let practiceIndices = [];
+    let index = 0;
+    let practiceMode = false;
+    const startedAt = Date.now();
+
+    // Track first decision per card
+    const firstDecision = new Map(); // index -> 'know' | 'practice'
+
+    // ===== DOM =====
+    const cardEl = document.getElementById('card');
+    const frontWordEl = document.getElementById('frontWord');
+    const frontPhonEl = document.getElementById('frontPhon');
+    const backTransZhEl = document.getElementById('backTransZh');
+    const exEnEl = document.getElementById('exEn');
+    const exZhEl = document.getElementById('exZh');
+    const audioFrontEl = document.getElementById('audioFront');
+    const audioBackEl = document.getElementById('audioBack');
+    const congratsEl = document.getElementById('congratsMsg');
+    const reviewControlsEl = document.getElementById('reviewControls');
+    const congratsSummaryEl = document.getElementById('congratsSummary');
+    const siteTitleEl = document.getElementById('siteTitle');
+    const siteInstrEl = document.getElementById('siteInstr');
+
+    // Header
+    function refreshHeader() {
+      siteTitleEl.innerHTML = `教育部 - 出国人员培训部<br/>第1周 • 英→中 闪卡`;
+      siteInstrEl.innerHTML = `点击卡片以翻转。点击音频图标🔊可收听单词或句子。`;
+    }
+    refreshHeader();
+
+    function showCard() {
+      const w = words[currentIndices[index]];
+      frontWordEl.textContent = w.english;
+      frontPhonEl.textContent = w.phonetic;
+      backTransZhEl.textContent = w.translation_zh;
+      exEnEl.innerHTML = highlightWord(w.example_en, w.english);
+      exZhEl.textContent = w.example_zh;
+      cardEl.classList.remove('flipped');
+    }
+
+    // Highlighter
+    function esc(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+    function highlightWord(sentence, word) {
+      const pattern = new RegExp(`\\b${esc(word)}\\b`, 'gi');
+      return sentence.replace(pattern, (m) => `<span class="highlight">${m}</span>`);
+    }
+
+    // Flip
+    cardEl.addEventListener('click', () => { cardEl.classList.toggle('flipped'); });
+
+    // Audio
+    const AUDIO_BASE = 'audio/';
+    function slugify(text) { return text.toLowerCase().replace(/[^a-z\s]/g, '').trim().replace(/\s+/g, '_'); }
+    function wordAudioName(english){ return slugify(english) + '.mp3'; }
+    function sentAudioName(english){ return slugify(english) + '_sen.mp3'; }
+    function audioUrl(name) { return AUDIO_BASE + name; }
+    function playWord() { const w = words[currentIndices[index]]; new Audio(audioUrl(wordAudioName(w.english))).play().catch(()=>{}); }
+    function playSentence() { const w = words[currentIndices[index]]; new Audio(audioUrl(sentAudioName(w.english))).play().catch(()=>{}); }
+    audioFrontEl.addEventListener('click', (e) => { e.stopPropagation(); playWord(); });
+    audioBackEl.addEventListener('click', (e) => { e.stopPropagation(); playSentence(); });
+
+    // Buttons
+    document.getElementById('knowBtn').addEventListener('click', () => { record('know'); nextCard(); });
+    document.getElementById('practiceBtn').addEventListener('click', () => { record('practice'); nextCard(); });
+
+    function record(action) {
+      const cardIdx = currentIndices[index];
+      if (!firstDecision.has(cardIdx)) firstDecision.set(cardIdx, action);
+      if (action === 'practice' && !practiceIndices.includes(cardIdx)) practiceIndices.push(cardIdx);
+    }
+
+    function nextCard() {
+      if (index < currentIndices.length - 1) {
+        index++;
+        showCard();
+      } else {
+        // finished current run
+        cardEl.classList.add('hidden');
+        if (!practiceMode && practiceIndices.length > 0) {
+          reviewControlsEl.classList.remove('hidden');
+        } else {
+          const s = computeSummary();
+          const elapsedMs = Date.now() - startedAt;
+          congratsSummaryEl.textContent = `掌握：${s.known}/${s.total} • 需练习：${s.practice}/${s.total} • 得分：${s.score}% • 用时：${formatDuration(elapsedMs)}`;
+          congratsEl.classList.remove('hidden');
+          document.body.classList.add('overlay-open'); // prevent card from intercepting clicks
+        }
+      }
+    }
+
+    document.getElementById('reviewPractice').addEventListener('click', () => {
+      practiceMode = true;
+      currentIndices = [...practiceIndices];
+      index = 0;
+      reviewControlsEl.classList.add('hidden');
+      congratsEl.classList.add('hidden');
+      document.body.classList.remove('overlay-open');
+      cardEl.classList.remove('hidden');
+      showCard();
+    });
+
+    document.getElementById('reviewAll').addEventListener('click', () => {
+      practiceMode = false;
+      INITIAL_INDICES = getAllIndices();
+      currentIndices = [...INITIAL_INDICES];
+      practiceIndices = [];
+      index = 0;
+      congratsEl.classList.add('hidden');
+      reviewControlsEl.classList.add('hidden');
+      document.body.classList.remove('overlay-open');
+      cardEl.classList.remove('hidden');
+      refreshHeader();
+      showCard();
+    });
+
+    document.getElementById('prevBtn').addEventListener('click', () => { if (index > 0) { index--; showCard(); } });
+    document.getElementById('nextBtn').addEventListener('click', () => nextCard());
+
+    function computeSummary() {
+      const total = totalTerms();
+      let known = 0;
+      getAllIndices().forEach(i => { if (firstDecision.get(i) === 'know') known++; });
+      const practice = total - known;
+      const score = Math.round((known / Math.max(total,1)) * 100);
+      return { known, practice, score, total };
+    }
+
+    // ===== 报告构建 + 用时 =====
+    function formatDuration(ms) {
+      let s = Math.max(0, Math.floor(ms / 1000));
+      const h = Math.floor(s / 3600); s -= h * 3600;
+      const m = Math.floor(s / 60); s -= m * 60;
+      const pad = (n) => String(n).padStart(2, '0');
+      return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`;
+    }
+
+    function buildReport() {
+      const student = (document.getElementById('studentId').value || '').trim();
+      const finishedAt = new Date();
+      const started = new Date(startedAt);
+      const s = computeSummary();
+      const elapsedMs = Date.now() - startedAt;
+
+      const meta = [
+        `<div><strong>词库：</strong>第1周 • 英→中（共 ${s.total} 个词条）</div>`,
+        `<div><strong>学生：</strong> ${student || '（未填写）'}</div>`,
+        `<div><strong>开始时间：</strong> ${started.toLocaleString()}</div>`,
+        `<div><strong>结束时间：</strong> ${finishedAt.toLocaleString()}</div>`
+      ].join('');
+      document.getElementById('reportMeta').innerHTML = meta;
+
+      const st = document.getElementById('summaryTable');
+      st.innerHTML = `
+        <tr><th>总词数</th><td>${s.total}</td></tr>
+        <tr><th>已掌握</th><td>${s.known}</td></tr>
+        <tr><th>需要练习</th><td>${s.practice}</td></tr>
+        <tr><th>用时</th><td>${formatDuration(elapsedMs)}</td></tr>
+        <tr class="score-row"><th>得分</th><td>${s.score}%</td></tr>
+      `;
+    }
+
+    // ===== 直接用 Canvas 绘制 PNG（可靠，兼容移动端/桌面） =====
+    function drawReportToCanvas() {
+      const s = computeSummary();
+      const student = (document.getElementById('studentId').value || '').trim();
+      const finishedAt = new Date();
+      const started = new Date(startedAt);
+      const elapsedMs = Date.now() - startedAt;
+
+      const W = 900, P = 24, ROW_H = 36;
+
+      const tmp = document.createElement('canvas');
+      tmp.width = W; tmp.height = 1200;
+      const ctx = tmp.getContext('2d');
+      ctx.fillStyle = "#fff"; ctx.fillRect(0,0,tmp.width,tmp.height);
+
+      const titleFont = "bold 24px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial";
+      const h2Font = "600 18px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial";
+      const bodyFont = "14px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial";
+      const scoreFont = "bold 18px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial";
+
+      function text(t, x, y, font, color="#111827") { ctx.font = font; ctx.fillStyle = color; ctx.fillText(t, x, y); }
+      function line(x1,y1,x2,y2, color="#e5e7eb") { ctx.strokeStyle = color; ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke(); }
+      function measure(t, font) { ctx.font = font; return ctx.measureText(t).width; }
+
+      let y = P;
+
+      text("学习表现报告", P, y+24, titleFont); y += 24 + 8;
+
+      const metaLines = [
+        `词库：第1周 • 英→中（共 ${s.total} 个词条）`,
+        `学生：${student || '（未填写）'}`,
+        `开始时间：${started.toLocaleString()}`,
+        `结束时间：${finishedAt.toLocaleString()}`
+      ];
+      metaLines.forEach(l => { text(l, P, y+16, bodyFont, "#374151"); y += 18; });
+
+      y += 12;
+      text("摘要", P, y+18, h2Font); y += 18 + 8;
+
+      const rows = [
+        ["总词数", String(s.total)],
+        ["已掌握", String(s.known)],
+        ["需要练习", String(s.practice)],
+        ["用时", formatDuration(elapsedMs)],
+        ["得分", `${s.score}%`]
+      ];
+      const col1w = Math.max(...rows.map(r => measure(r[0], bodyFont))) + 24;
+      const tableX = P, tableW = W - P*2, col2x = tableX + col1w;
+
+      // top border
+      line(tableX, y, tableX + tableW, y);
+      rows.forEach((r, i) => {
+        const isScore = i === rows.length - 1;
+        const font = isScore ? scoreFont : bodyFont;
+        const color = isScore ? "#0f766e" : "#111827";
+
+        line(tableX, y, tableX, y + ROW_H);
+        line(col2x, y, col2x, y + ROW_H);
+        line(tableX + tableW, y, tableX + tableW, y + ROW_H);
+
+        text(r[0], tableX + 8, y + 23, font, color);
+        text(r[1], col2x + 8, y + 23, font, color);
+
+        line(tableX, y + ROW_H, tableX + tableW, y + ROW_H);
+        y += ROW_H;
+      });
+
+      const H = y + P;
+      const out = document.createElement('canvas');
+      out.width = W; out.height = H;
+      const octx = out.getContext('2d');
+      octx.fillStyle = "#fff"; octx.fillRect(0,0,W,H);
+      octx.drawImage(tmp, 0, 0);
+      return out;
+    }
+
+    async function saveReportAsImage() {
+      buildReport();
+      const canvas = drawReportToCanvas();
+      const dataUrl = canvas.toDataURL('image/png');
+
+      try {
+        if (navigator.canShare && typeof navigator.canShare === 'function') {
+          const res = await fetch(dataUrl);
+          const blob = await res.blob();
+          const file = new File([blob], '学习表现报告.png', { type: 'image/png' });
+          if (navigator.canShare({ files: [file] }) && navigator.share) {
+            await navigator.share({ files: [file], title: '学习表现报告' });
+            return;
+          }
+        }
+      } catch (_) { /* ignore and fallback */ }
+
+      const a = document.createElement('a');
+      a.href = dataUrl;
+      a.download = '学习表现报告.png';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => {
+        if (!document.hidden) {
+          const w = window.open(dataUrl, '_blank');
+          if (w) w.focus();
+        }
+      }, 300);
+    }
+
+    document.getElementById('saveImgBtn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      saveReportAsImage();
+    });
+
+    // 初始化：载入首张
+    showCard();
+  </script>
+
+<script>
+// Safely move the 复习“需要练习” button above the arrow nav without touching functionality.
+document.addEventListener('DOMContentLoaded', function () {
+  try {
+    var nav = document.querySelector('.nav');
+    var review = document.getElementById('reviewControls');
+    if (nav && review && nav.parentNode) {
+      nav.parentNode.insertBefore(review, nav);
+    }
+  } catch (e) {
+    console.error('Reorder failed:', e);
+  }
+});
+</script>
+</body>
+</html>
